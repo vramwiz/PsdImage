@@ -124,13 +124,17 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="PsdImage.pas"/>
-        <DCCReference Include="DebugStopwatch.pas"/>
         <DCCReference Include="PSDImageForm.pas">
             <Form>FormPSDImage</Form>
             <FormType>dfm</FormType>
         </DCCReference>
         <DCCReference Include="PsdFileImageFrame.pas">
             <Form>FramePsdFileImage</Form>
+            <FormType>dfm</FormType>
+            <DesignClass>TFrame</DesignClass>
+        </DCCReference>
+        <DCCReference Include="PsdFileTreeFrame.pas">
+            <Form>FramePsdFileTree</Form>
             <FormType>dfm</FormType>
             <DesignClass>TFrame</DesignClass>
         </DCCReference>

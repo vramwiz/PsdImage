@@ -1,3 +1,52 @@
+//------------------------------------------------------------------------------
+//  クラス名 : TPSDImage
+//------------------------------------------------------------------------------
+//  【概要】
+//    Photoshop(PSD) ファイルを読み込み、内部構造（レイヤー階層・リソース情報）
+//    を解析して VCL 用の TBitmap にレンダリングするクラスです。
+//    各レイヤーは TPsdFileLayer/Trees/Layers クラスを通じて管理され、
+//    Render() により合成画像を生成します。
+//
+//  【主な役割】
+//    ・PSDファイルヘッダの読み込みと基本情報の保持
+//    ・カラーモード、チャネル構成、レイヤー情報の解析
+//    ・レイヤー階層(TPsdFileTrees)の構築
+//    ・各レイヤーの描画順に基づく合成処理(Render)
+//    ・VCL向けの全体画像(TBitmap)生成
+//
+//  【内部構成】
+//    FLayerRoot   : 仮想的な最上位レイヤー（PSDTool互換構造用）
+//    FLayers      : レイヤー管理クラス（全レイヤーを一元管理）
+//    FTrees       : レイヤー階層ツリー構造
+//    FBitmap      : 合成後の最終出力ビットマップ
+//    FResource    : PSD内の追加リソース情報（ICCプロファイル等）
+//
+//  【主なメソッド】
+//    LoadFromFile()       : PSDファイルを読み込んで内部構造を解析
+//    Render()             : 各レイヤーをα合成して最終ビットマップを生成
+//    Invalidate()         : 再描画を要求（Renderを再実行）
+//    VisibleInit()        : レイヤーの表示・非表示を初期化
+//    GetBitmap()          : 合成済みのTBitmapを取得
+//    GetBitmapThumbnail() : 縮小サムネイルを取得
+//
+//  【ファイル構造解析】
+//    LoadFromFileHeader()     : ファイルヘッダおよび基本情報を読み込み
+//    LoadFromFileColorMode()  : カラーモードデータを解析
+//    LoadFromFileLayerInfo()  : レイヤー情報・チャネルデータを展開
+//    LoadFromFileTree()       : フォルダ構造(グループ階層)を構築
+//    LoadFromFileAnm()        : ANM連携用データ割り当て
+//
+//  【描画動作】
+//    RenderSub() 内でレイヤーツリーを走査し、各レイヤーのブレンドモード
+//    に従って FBitmap に対して順次合成を行います。
+//    現在のVCL描画実装では αブレンドは疑似的な処理であり、
+//    PNG保存時には完全な透明情報を維持します。
+//
+//  【注意点】
+//    ・FBitmap は pf32bit + AlphaFormat=afDefined で管理されます。
+//    ・VCL上では透明は白背景で表示されますが、保存時にαは保持されます。
+//    ・Render() 実行後に FBitmap を直接操作する場合、ロック処理に注意してください。
+//------------------------------------------------------------------------------
 unit PSDImage;
 
 interface
@@ -466,25 +515,6 @@ type TPsdFileResource = class(TPersistent)
     property Size : Integer read FSize;
   end;
 
-type
-  TPsdFileThread = class(TThread)
-  private
-    { Private 宣言 }
-    FBitmap   : TBitmap;
-    FTrees : TPsdFileTrees;
-    FBitmapLines : array of Pointer;
-    FOnFinish: TNotifyEvent;
-    procedure ExecuteSub(tss : TPsdFileTrees);
-  protected
-    procedure Execute();override;
-    procedure DoFinish();
-  public
-    { Public 宣言 }
-    constructor Create(Trees : TPsdFileTrees;aBitmap : TBitmap;FOnF : TNotifyEvent);
-    destructor Destroy;override;
-
-    property OnFinish : TNotifyEvent read FOnFinish write FOnFinish;
-  end;
 
 
 //--------------------------------------------------------------------------//
@@ -1166,13 +1196,6 @@ function TPsdFileLayer.DrawNorm(const fromCol, toCol: TFourth): TFourth;
 var
   alpha : Integer;
 begin
-  {
-  result.R := fromCol.R;
-  result.G := fromCol.G;
-  result.B := fromCol.B;
-  result.A := fromCol.A;
-   }
-
   alpha := 255 - fromCol.A;
   result.R := fromCol.R * fromCol.A div 255 + toCol.R * alpha div 255;
   result.G := fromCol.G * fromCol.A div 255 + toCol.G * alpha div 255;
@@ -1191,14 +1214,6 @@ begin
   fromCol2.G := fromCol.G  * toCol.G div 255;
   fromCol2.B := fromCol.B  * toCol.B div 255;
   fromCol2.A := fromCol.A  * toCol.A div 255;
-  {
-  if fromCol2.R < 0 then fromCol2.R := 0;
-  if fromCol2.G < 0 then fromCol2.G := 0;
-  if fromCol2.B < 0 then fromCol2.B := 0;
-  if fromCol2.R > 255 then fromCol2.R := 255;
-  if fromCol2.G > 255 then fromCol2.G := 255;
-  if fromCol2.B > 255 then fromCol2.B := 255;
-  }
 
   result.R := fromCol2.R * fromCol.A div 255 + toCol.R * alpha div 255;
   result.G := fromCol2.G * fromCol.A div 255 + toCol.G * alpha div 255;
@@ -1963,68 +1978,6 @@ begin
     jpeg.Free;
   end;
   result := True;
-end;
-
-{ TPsdFileThread }
-
-constructor TPsdFileThread.Create(Trees: TPsdFileTrees; aBitmap: TBitmap;FOnF : TNotifyEvent);
-var
-  y,yh : Integer;
-begin
-  inherited Create(False);
-
-  FreeOnTerminate := False;
-  FBitmap := aBitmap;
-  FTrees := Trees;
-  FOnFinish := FOnF;
-
-  //FBitmap.Canvas.Lock;
-  yh := FBitmap.Height;
-  SetLength(FBitmapLines,yh);
-  for y := 0 to yh-1 do begin
-    FBitmapLines[y] := FBitmap.ScanLine[y];
-  end;
-end;
-
-destructor TPsdFileThread.Destroy;
-begin
-
-  inherited;
-end;
-
-procedure TPsdFileThread.DoFinish;
-begin
-  if Assigned(FOnFinish) then begin
-    FOnFinish(Self);
-  end;
-end;
-
-procedure TPsdFileThread.Execute;
-begin
-  ExecuteSub(FTrees);
-  Synchronize(DoFinish);
-end;
-
-procedure TPsdFileThread.ExecuteSub(tss: TPsdFileTrees);
-var
-  i : Integer;
-  ts : TPsdFileTree;
-  dl : TPsdFileLayer;
-begin
-  for i := tss.Count-1 downto 0 do begin
-    ts := tss[i];
-    if not ts.Visible then continue;
-    ExecuteSub(TPsdFileTrees(ts.Trees));
-
-    dl := ts.FLayer;
-    if dl.LayerType<>0 then continue;
-    if Terminated then exit;
-    if ts.Owners.Count=0 then continue;
-
-    //dl.LoadFromBitmap();
-    if Terminated then exit;
-    dl.Draw(FBitmapLines,FBitmap.Width,FBitmap.Height,dl.Channels[0].Left,dl.Channels[0].Top);
-  end;
 end;
 
 //--------------------------------------------------------------------------//

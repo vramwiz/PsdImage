@@ -24,6 +24,31 @@ object FormPSDImage: TFormPSDImage
     OnClick = Button1Click
     ExplicitWidth = 622
   end
+  object PanelImage: TPanel
+    Left = 185
+    Top = 25
+    Width = 439
+    Height = 416
+    Align = alClient
+    Caption = 'PanelImage'
+    TabOrder = 1
+    ExplicitLeft = 360
+    ExplicitTop = 96
+    ExplicitWidth = 185
+    ExplicitHeight = 41
+  end
+  object PanelTree: TPanel
+    Left = 0
+    Top = 25
+    Width = 185
+    Height = 416
+    Align = alLeft
+    Caption = 'PanelTree'
+    TabOrder = 2
+    ExplicitLeft = 8
+    ExplicitTop = 8
+    ExplicitHeight = 240
+  end
   object OpenDialog1: TOpenDialog
     Filter = 'PSD'#12501#12449#12452#12523'(.*PSD)|*psd'
     Left = 64

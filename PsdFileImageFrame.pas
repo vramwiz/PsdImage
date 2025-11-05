@@ -68,7 +68,7 @@ type
 
 implementation
 
-uses PNGImage;
+uses PNGImage,Math;
 
 // 拡大率テーブル
 const TBL_SCALE : array[0..4] of Double = (1,1.5,2,4,8);
@@ -96,7 +96,39 @@ begin
   end;
 end;
 
+// ---------------------------------------------------------------
+// 市松模様を描画する（1マス16px・グレー×白）
+// ---------------------------------------------------------------
+procedure DrawCheckerBoard(Canvas: TCanvas; const R: TRect; CellSize: Integer = 16);
+var
+  x, y: Integer;
+  c1, c2: TColor;
+  cell: TRect;
+  w, h: Integer;
+  toggle: Boolean;
+begin
+  c1 := RGB(220, 220, 220);  // 明るいグレー
+  c2 := RGB(255, 255, 255);  // 白
+  w := R.Width;
+  h := R.Height;
 
+  for y := 0 to (h div CellSize) do
+  begin
+    toggle := (y mod 2 = 0);
+    for x := 0 to (w div CellSize) do
+    begin
+      Canvas.Brush.Color := IfThen(toggle, c1, c2);
+      cell := Rect(
+        R.Left + x * CellSize,
+        R.Top + y * CellSize,
+        R.Left + (x + 1) * CellSize,
+        R.Top + (y + 1) * CellSize
+      );
+      Canvas.FillRect(cell);
+      toggle := not toggle;
+    end;
+  end;
+end;
 {$R *.dfm}
 
 { TFramePsdFileImage }
@@ -175,13 +207,16 @@ var
   cv : TCanvas;
   r : TRect;
 begin
-  r := Rect(0,0,ImagePsd.Width,ImagePsd.Height);
+  r := Rect(0, 0, ImagePsd.Width, ImagePsd.Height);
   cv := ImagePsd.Canvas;
-  cv.Brush.Color := clWhite;
-  cv.Brush.Style := bsSolid;
-  cv.FillRect(r);
-  RectToStreachRect(r,FPsdImage.Bitmap.Width,FPsdImage.Bitmap.Height);
-  ImagePsd.Canvas.StretchDraw(r,FPsdImage.Bitmap);
+
+  // ▼ 背景：市松模様を描く
+  DrawCheckerBoard(cv, r, 16);
+
+  // ▼ PSD画像を中央にストレッチ描画
+  RectToStreachRect(r, FPsdImage.Bitmap.Width, FPsdImage.Bitmap.Height);
+  ImagePsd.Canvas.StretchDraw(r, FPsdImage.Bitmap);
+
   FDrawing := False;
 end;
 
@@ -279,15 +314,18 @@ var
   cv : TCanvas;
   r : TRect;
 begin
-  r := Rect(0,0,ImagePsd.Width,ImagePsd.Height);
+  r := Rect(0, 0, ImagePsd.Width, ImagePsd.Height);
   ImagePsd.Picture.Bitmap.Width := ImagePsd.Width;
   ImagePsd.Picture.Bitmap.Height := ImagePsd.Height;
   cv := ImagePsd.Canvas;
-  cv.Brush.Color := clWhite;
-  cv.Brush.Style := bsSolid;
-  cv.FillRect(r);
-  RectToStreachRect(r,FPsdImage.Bitmap.Width,FPsdImage.Bitmap.Height);
-  ImagePsd.Canvas.StretchDraw(r,FPsdImage.Bitmap);
+
+  // ▼ 背景：市松模様
+  DrawCheckerBoard(cv, r, 16);
+
+  // ▼ PSD画像を描画
+  RectToStreachRect(r, FPsdImage.Bitmap.Width, FPsdImage.Bitmap.Height);
+  ImagePsd.Canvas.StretchDraw(r, FPsdImage.Bitmap);
+
   DoRectChange();
 end;
 
@@ -305,6 +343,7 @@ end;
 procedure TFramePsdFileImage.ShowImage;
 begin
   FShowed := True;
+  FPsdImage.Invalidate;
   OnTimer(Self);              // 直にタイマー処理を呼び出す
   OnDrawFinish(Self);
 end;

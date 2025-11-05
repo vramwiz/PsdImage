@@ -4,13 +4,15 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls,PSDImage,DebugStopwatch,
-  PsdFileImageFrame;
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls,PSDImage,
+  PsdFileImageFrame,PsdFileTreeFrame;
 
 type
   TFormPSDImage = class(TForm)
     Button1: TButton;
     OpenDialog1: TOpenDialog;
+    PanelImage: TPanel;
+    PanelTree: TPanel;
     procedure Button1Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -18,6 +20,9 @@ type
     { Private 宣言 }
     FPSDImage : TPsdImage;
     FFrameImage : TFramePsdFileImage;
+    FFrameTree : TFramePsdFileTree;
+    // ツリーで表情変更時のイベント
+    procedure OnTreeClick(Sender: TObject);
   public
     { Public 宣言 }
   end;
@@ -34,17 +39,29 @@ begin
   FPSDImage := TPSDImage.Create;
 
   FFrameImage := TFramePsdFileImage.Create(Self);
-  FFrameImage.Parent := Self;
+  FFrameImage.Parent := PanelImage;
   FFrameImage.Align := alClient;
   FFrameImage.PsdImage := FPSDImage;
+
+  FFrameTree := TFramePsdFileTree.Create(Self);
+  FFrameTree.Parent := PanelTree;
+  FFrameTree.Align := alClient;
+  FFrameTree.PsdImage := FPSDImage;
+  FFrameTree.OnTreeClick := OnTreeClick;
 end;
 
 procedure TFormPSDImage.FormDestroy(Sender: TObject);
 begin
+  FFrameTree.Free;
   FFrameImage.Free;
   FPSDImage.Free;
 end;
 
+
+procedure TFormPSDImage.OnTreeClick(Sender: TObject);
+begin
+  FFrameImage.ShowImage;
+end;
 
 procedure TFormPSDImage.Button1Click(Sender: TObject);
 begin
@@ -55,15 +72,12 @@ begin
     Exit;
 
   // PSD読み込みクラスを生成
-  StopTimStart(0);
   // ファイルを読み込み
   FPSDImage.LoadFromFile(OpenDialog1.FileName);
-  StopTimStop(0, 'Load');
 
-  StopTimStart(0);
+  FFrameTree.ShowTree;
   // 表示先の TImage に転送
   FFrameImage.ShowImage;
-  StopTimStop(0, 'Draw');
 
   // フォームのタイトルにファイル名を表示
   Caption := Format('PSD表示テスト - %s', [ExtractFileName(OpenDialog1.FileName)]);

@@ -3,9 +3,9 @@ program PSDImageSample;
 uses
   Vcl.Forms,
   PsdImage in 'PsdImage.pas',
-  DebugStopwatch in 'DebugStopwatch.pas',
   PSDImageForm in 'PSDImageForm.pas' {FormPSDImage},
-  PsdFileImageFrame in 'PsdFileImageFrame.pas' {FramePsdFileImage: TFrame};
+  PsdFileImageFrame in 'PsdFileImageFrame.pas' {FramePsdFileImage: TFrame},
+  PsdFileTreeFrame in 'PsdFileTreeFrame.pas' {FramePsdFileTree: TFrame};
 
 {$R *.res}
 
