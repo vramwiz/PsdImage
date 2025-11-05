@@ -32,6 +32,34 @@ var
 
 implementation
 
+var
+  GPerfCounter: array[0..9] of Int64;
+
+
+procedure StopTimStart(const Index: Integer);
+begin
+  if (Index < Low(GPerfCounter)) or (Index > High(GPerfCounter)) then
+    Exit;
+  QueryPerformanceCounter(GPerfCounter[Index]);
+end;
+
+procedure StopTimStop(const Index: Integer; const Tag: string);
+var
+  StopCounter, Elapsed: Int64;
+  Ms: Double;
+  Msg: string;
+  Freq: Int64;
+begin
+  if (Index < Low(GPerfCounter)) or (Index > High(GPerfCounter)) then
+    Exit;
+  QueryPerformanceFrequency(Freq);
+  QueryPerformanceCounter(StopCounter);
+  Elapsed := StopCounter - GPerfCounter[Index];
+  Ms := (Elapsed / Freq) * 1000.0;
+  Msg := Format('StopTim[%d] %s = %.3f ms', [Index, Tag, Ms]);
+  OutputDebugString(PChar(Msg));
+end;
+
 {$R *.dfm}
 
 procedure TFormPSDImage.FormCreate(Sender: TObject);
@@ -73,11 +101,18 @@ begin
 
   // PSD読み込みクラスを生成
   // ファイルを読み込み
+  StopTimStart(0);
   FPSDImage.LoadFromFile(OpenDialog1.FileName);
+  StopTimStop(0,'Load');
 
+  StopTimStart(0);
   FFrameTree.ShowTree;
+  StopTimStop(0,'Tree');
+
   // 表示先の TImage に転送
+  StopTimStart(0);
   FFrameImage.ShowImage;
+  StopTimStop(0,'View');
 
   // フォームのタイトルにファイル名を表示
   Caption := Format('PSD表示テスト - %s', [ExtractFileName(OpenDialog1.FileName)]);

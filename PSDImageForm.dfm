@@ -32,10 +32,8 @@ object FormPSDImage: TFormPSDImage
     Align = alClient
     Caption = 'PanelImage'
     TabOrder = 1
-    ExplicitLeft = 360
-    ExplicitTop = 96
-    ExplicitWidth = 185
-    ExplicitHeight = 41
+    ExplicitWidth = 437
+    ExplicitHeight = 408
   end
   object PanelTree: TPanel
     Left = 0
@@ -45,9 +43,7 @@ object FormPSDImage: TFormPSDImage
     Align = alLeft
     Caption = 'PanelTree'
     TabOrder = 2
-    ExplicitLeft = 8
-    ExplicitTop = 8
-    ExplicitHeight = 240
+    ExplicitHeight = 408
   end
   object OpenDialog1: TOpenDialog
     Filter = 'PSD'#12501#12449#12452#12523'(.*PSD)|*psd'

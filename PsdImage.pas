@@ -222,7 +222,8 @@ type
     FImage        :  array of array of Byte;
     FColorType: TPsdFileColorType; // y * x のサイズを持つ画像データ管理 8bit専用
 
-    function LoadBitmap(fs : TFileStreamBuf;Pos : Integer) : Boolean;
+
+    function LoadBitmap(fs : TFileStreamBuf) : Boolean;
     // 非圧縮データを展開
     function LoadBitmapCompressionNon(fs : TFileStreamBuf) : Boolean;
     // RLE圧縮データを展開
@@ -305,7 +306,10 @@ type
     FAnmGroup     : string;
     FAnmGroup2    : string;
     FTree         : TObject;
+    FImageLoaded  : Boolean;
 
+    procedure LoadFromBitmap(fs : TFileStreamBuf);
+    procedure LoadFromBitmapFile();
     function LoadFromStreamInfo(fs : TFileStreamBuf) : Boolean;
     function LoadFromStream(fs : TFileStreamBuf) : Boolean;
     function LoadFromStreamNorm(fs : TFileStreamBuf;mode : TPsdFileBlandType) : Integer;
@@ -550,7 +554,7 @@ type TPSDImage = class(TPersistent)
     function LoadFromFileAnm() : Boolean; // ANMファイルの作成に必要な情報を各レイヤーに割り当てる
     function LoadFromFileTree() : Boolean;
 
-    procedure RenderSub(tss : TPsdFileTrees);
+    procedure RenderSub(tss : TPsdFileTrees;fs : TFileStreamBuf);
     procedure BitmapClear();
 
     function GetBitmap: TBitmap;
@@ -697,7 +701,7 @@ begin
   inherited;
 end;
 
-procedure TPsdImage.RenderSub(tss: TPsdFileTrees);
+procedure TPsdImage.RenderSub(tss: TPsdFileTrees;fs : TFileStreamBuf);
 var
   i : Integer;
   ts : TPsdFileTree;
@@ -706,11 +710,11 @@ begin
   for i := tss.Count-1 downto 0 do begin
     ts := tss[i];
     if not ts.Visible then continue;
-    RenderSub(TPsdFileTrees(ts.Trees));
+    RenderSub(TPsdFileTrees(ts.Trees),fs);
 
     dl := ts.FLayer;
     if dl.LayerType<>0 then continue;
-    //dl.LoadFromBitmap();
+    dl.LoadFromBitmap(fs);
     dl.Draw(FBitmapLines,FWidth,FHeight,dl.Channels[0].Left,dl.Channels[0].Top);
   end;
 end;
@@ -759,7 +763,7 @@ begin
         dc := dl.Channels[i];                     // チャンネルのデータを参照
         dc.FImageAdr := pos;                      // 画像データのアドレスとする
 
-        dc.LoadBitmap(fs,pos);
+        //dc.LoadBitmap(fs,pos);
 
         pos := pos + dc.FImageLength;             // 画像サイズ分アドレスを増やす
       end;
@@ -991,18 +995,27 @@ end;
 procedure TPSDImage.Render;
 var
   y : Integer;
+  fs : TFileStreamBuf;
 begin
   FBitmap.SetSize(FWidth,FHeight);
   FBitmap.PixelFormat := pf32bit;
   BitmapClear();
   SetLength(FBitmapLines,FHeight);
-  for y := 0 to FHeight-1 do begin
-    FBitmapLines[y] := FBitmap.ScanLine[y];
-  end;
 
-  RenderSub(FTrees);
-  FBitmap.AlphaFormat := afDefined;
-  FRendered := True;
+  if not FileExists(FFileName) then Exit;
+
+  fs := TFileStreamBuf.Create(FFileName);
+    try
+    for y := 0 to FHeight-1 do begin
+      FBitmapLines[y] := FBitmap.ScanLine[y];
+    end;
+
+    RenderSub(FTrees,fs);
+    FBitmap.AlphaFormat := afDefined;
+    FRendered := True;
+  finally
+    fs.Free;
+  end;
 end;
 
 procedure TPsdImage.VisibleInit;
@@ -1257,6 +1270,46 @@ begin
   result := ts.Visible;
 end;
 
+procedure TPsdFileLayer.LoadFromBitmap(fs : TFileStreamBuf);
+var
+  dc : TPsdFileChannel;
+  i : Integer;
+begin
+  if FImageLoaded then exit;                    // データ読み込み済みの場合処理しない
+
+  for i := 0 to Channels.Count-1 do begin       // チャンネル数分ループ　αRGB
+    dc := Channels[i];                          // チャンネルデータを参照
+    fs.Seek(dc.ImageAdr);
+    dc.LoadBitmap(fs);                          // ファイルからチャンネルごとの画像データを作成
+  end;
+  FImageLoaded := True;
+end;
+
+procedure TPsdFileLayer.LoadFromBitmapFile;
+var
+  dc : TPsdFileChannel;
+  i : Integer;
+  Filename : string;
+  fs : TFileStreamBuf;
+  psd : TPSDImage;
+begin
+  if FImageLoaded then exit;                    // データ読み込み済みの場合処理しない
+
+  psd := TPSDImage(FOwner);
+  Filename := psd.FFileName;
+  if not FileExists(Filename) then Exit;
+  fs := TFileStreamBuf.Create(FileName);
+  try
+    for i := 0 to Channels.Count-1 do begin       // チャンネル数分ループ　αRGB
+      dc := Channels[i];                          // チャンネルデータを参照
+      fs.Seek(dc.ImageAdr);
+      dc.LoadBitmap(fs);                          // ファイルからチャンネルごとの画像データを作成
+    end;
+  FImageLoaded := True;
+  finally
+    fs.Free;
+  end;
+end;
 
 function TPsdFileLayer.LoadFromStream(fs: TFileStreamBuf): Boolean;
 var
@@ -1438,10 +1491,9 @@ begin
   if FChannels.Count=5 then begin
     exit;
   end;
+  LoadFromBitmapFile();
   aWidth := FChannels.Width;
   aHeight := FChannels.Height;
-  //aWidth := aBitmap.Width;
-  //aHeight := aBitmap.Height;
 
   aBitmap.SetSize(aWidth,aHeight);
   aBitmap.PixelFormat := pf32bit;
@@ -1458,8 +1510,6 @@ begin
   if FChannels.Height=0 then exit;
 
   Draw(sLines,aWidth,aHeight,0,0);
-  //Draw2(sLines,aWidth,aHeight,Channels[0].Left,Channels[0].Top);
-
 
 end;
 
@@ -1569,7 +1619,7 @@ begin
   result := FRight - FLeft;
 end;
 
-function TPsdFileChannel.LoadBitmap(fs: TFileStreamBuf; Pos: Integer): Boolean;
+function TPsdFileChannel.LoadBitmap(fs: TFileStreamBuf): Boolean;
 var
   mode : Integer;
 
