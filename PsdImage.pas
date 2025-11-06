@@ -1207,13 +1207,14 @@ end;
 // ïWèÄï`âÊ
 function TPsdFileLayer.DrawNorm(const fromCol, toCol: TFourth): TFourth;
 var
-  alpha : Integer;
+  alpha,invA : Integer;
 begin
+  invA := 255 - fromCol.A;
   alpha := 255 - fromCol.A;
   result.R := fromCol.R * fromCol.A div 255 + toCol.R * alpha div 255;
   result.G := fromCol.G * fromCol.A div 255 + toCol.G * alpha div 255;
   result.B := fromCol.B * fromCol.A div 255 + toCol.B * alpha div 255;
-  result.A := fromCol.A * fromCol.A div 255 + toCol.A * alpha div 255;
+  result.A := fromCol.A + (toCol.A * invA) div 255;
 end;
 
 // èÊéZï`âÊ
